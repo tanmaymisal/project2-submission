@@ -41,20 +41,12 @@ export const ErrorCodes = {
 
 export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Retry utility with exponential backoff
  *
  * This function implements the retry pattern with exponential backoff and jitter.
- *
- * Algorithm:
- * 1. Try to execute the function
- * 2. If it succeeds, return the result
- * 3. If it fails and retries remain:
- *    - Calculate backoff delay: delayMs * 2^(attempt - 1)
- *    - Add jitter (random 0-100ms) to prevent thundering herd
- *    - Wait for the calculated duration
- *    - Retry
- * 4. If all retries exhausted, throw ReviewError with RETRY_EXHAUSTED code
  *
  * @param fn - Async function to retry
  * @param maxRetries - Maximum number of retries (default: 3)
@@ -67,23 +59,24 @@ export async function withRetry<T>(
   maxRetries: number = 3,
   delayMs: number = 1000
 ): Promise<T> {
-  // TODO: Implement retry logic with exponential backoff
-  // Hints:
-  // - Use a for loop from 1 to maxRetries
-  // - Use try/catch to catch errors
-  // - Calculate backoff: delayMs * Math.pow(2, attempt - 1)
-  // - Add jitter: Math.random() * 100
-  // - Use setTimeout wrapped in Promise for delay
-  // - Throw ReviewError with ErrorCodes.RETRY_EXHAUSTED if all retries fail
-
-  throw new Error('Not implemented');
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries) break;
+      const backoff = delayMs * Math.pow(2, attempt - 1) + Math.random() * 100;
+      await sleep(backoff);
+    }
+  }
+  throw new ReviewError('Retry attempts exhausted', ErrorCodes.RETRY_EXHAUSTED, { maxRetries, lastError });
 }
 
 /**
  * Wrap an async function with timeout
  *
  * This function races the provided function against a timeout.
- * Whichever completes first wins.
  *
  * @param fn - Async function to wrap
  * @param timeoutMs - Timeout in milliseconds
@@ -96,14 +89,18 @@ export async function withTimeout<T>(
   timeoutMs: number,
   errorMessage: string = 'Operation timed out'
 ): Promise<T> {
-  // TODO: Implement timeout wrapper using Promise.race
-  // Hints:
-  // - Use Promise.race to race fn() against a timeout promise
-  // - The timeout promise should reject after timeoutMs milliseconds
-  // - Throw ReviewError with ErrorCodes.AGENT_TIMEOUT on timeout
-  // - Include timeoutMs in metadata
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new ReviewError(errorMessage, ErrorCodes.AGENT_TIMEOUT, { timeoutMs }));
+    }, timeoutMs);
+  });
 
-  throw new Error('Not implemented');
+  try {
+    return await Promise.race([fn(), timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId!);
+  }
 }
 
 /**
