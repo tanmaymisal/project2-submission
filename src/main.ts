@@ -45,7 +45,17 @@ async function main() {
     process.exit(1);
   }
 
+  // TODO: Validate GITHUB_TOKEN environment variable
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    console.error('Error: GITHUB_TOKEN environment variable is required.');
+    console.error('GitHub MCP needs this token to fetch pull request files.');
+    console.error('Add GITHUB_TOKEN=ghp_your_token_here to your .env file.');
+    process.exit(1);
+  }
+
   // TODO: Validate ANTHROPIC_MODEL environment variable
+  
   if (!process.env.ANTHROPIC_MODEL) {
     console.error('Error: ANTHROPIC_MODEL environment variable is required.');
     process.exit(1);
