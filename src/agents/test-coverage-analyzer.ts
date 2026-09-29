@@ -2,8 +2,8 @@ import { AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
 import { testCoverageAnalyzerPrompt } from '../prompts/index.js';
 
 export const testCoverageAnalyzer: AgentDefinition = {
-  description: 'Evaluates test completeness, identifies functions without test coverage, and suggests specific test cases with meaningful assertions.',
+  description: 'Evaluates test completeness, identifies untested paths, and invokes testing skills when useful.',
   model: 'inherit',
-  tools: ['Read'],
+  tools: ['Read', 'Skill'],
   prompt: testCoverageAnalyzerPrompt
 };
