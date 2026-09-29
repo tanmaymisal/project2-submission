@@ -2,32 +2,41 @@ import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CodeReviewOrchestrator } from './orchestrator.js';
-import { ReportGenerator } from './utils/report-generator.js'; 
+import { ReportGenerator } from './utils/report-generator.js';
+import { formatError } from './utils/index.js';
 
 // Load environment variables
 dotenv.config();
 
+function printUsage(): void {
+  console.error('Usage: npm run dev -- <owner> <repo> <pr-number>');
+  console.error('Example: npm run dev -- octocat Hello-World 1');
+}
+
 /**
  * Main entry point for the Claude Multi-Agent Code Review System
- * Usage: npm run dev <owner> <repo> <pr-number>
+ * Usage: npm run dev -- <owner> <repo> <pr-number>
  */
 async function main() {
   const [owner, repo, prStr] = process.argv.slice(2);
 
-  // TODO: Validate command line arguments
+  // Validate command line arguments
   if (!owner || !repo || !prStr) {
     console.error('Error: Missing arguments.');
-    console.error('Usage: npm run dev <owner> <repo> <pr-number>');
+    printUsage();
     process.exit(1);
   }
 
-  const prNumber = parseInt(prStr, 10);
-  if (isNaN(prNumber)) {
-    console.error('Error: PR number must be a valid integer.');
+  // Validate that PR number is a positive integer
+  if (!/^\d+$/.test(prStr) || Number(prStr) <= 0) {
+    console.error(`Error: PR number must be a positive integer. Received: ${prStr}`);
+    printUsage();
     process.exit(1);
   }
 
-  // TODO: Validate authentication (choose ONE method)
+  const prNumber = Number(prStr);
+
+  // Validate authentication (choose ONE method)
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   const hasBedrock = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
 
@@ -45,7 +54,7 @@ async function main() {
     process.exit(1);
   }
 
-  // TODO: Validate GITHUB_TOKEN environment variable
+  // Validate GITHUB_TOKEN environment variable
   const githubToken = process.env.GITHUB_TOKEN;
   if (!githubToken) {
     console.error('Error: GITHUB_TOKEN environment variable is required.');
@@ -54,7 +63,7 @@ async function main() {
     process.exit(1);
   }
 
-  // TODO: Validate ANTHROPIC_MODEL environment variable
+  // Validate ANTHROPIC_MODEL environment variable
   if (!process.env.ANTHROPIC_MODEL) {
     console.error('Error: ANTHROPIC_MODEL environment variable is required.');
     process.exit(1);
@@ -63,13 +72,18 @@ async function main() {
   console.log(`\n🚀 Starting code review for: ${owner}/${repo}#${prNumber}`);
   
   try {
-    // TODO: Create orchestrator instance
+    // Create orchestrator instance
     const orchestrator = new CodeReviewOrchestrator();
     
-    // TODO: Call .reviewPullRequest(owner, repo, prNumber);
+    // Call .reviewPullRequest(owner, repo, prNumber);
     const report = await orchestrator.reviewPullRequest(owner, repo, prNumber);
+
+    // Guard against empty placeholder reports
+    if (!report.fileReviews || report.fileReviews.length === 0) {
+      throw new Error('Report generated with no file reviews; check GitHub MCP and subagent execution.');
+    }
     
-    // TODO: Generate formatted reports using ReportGenerator
+    // Generate formatted reports using ReportGenerator
     console.log('\nGenerating reports...');
     const generator = new ReportGenerator();
     
@@ -93,11 +107,6 @@ async function main() {
     fs.writeFileSync(jsonPath, jsonOutput);
     fs.writeFileSync(mdPath, mdOutput);
     fs.writeFileSync(htmlPath, htmlOutput);
-
-    // Guard against empty placeholder reports
-    if (!report.fileReviews || report.fileReviews.length === 0) {
-      throw new Error('Report generated with no file reviews; check GitHub MCP and subagent execution.');
-    }
     
     console.log(`\n✅ Success! Reports generated and saved to the 'reports/' directory:`);
     console.log(`  - ${jsonPath}`);
@@ -105,7 +114,7 @@ async function main() {
     console.log(`  - ${htmlPath}`);
     
   } catch (error) {
-    console.error('\n❌ Error:', error);
+    console.error('\n❌ Error:', formatError(error));
     process.exit(1);
   }
 }
