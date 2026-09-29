@@ -8,6 +8,9 @@
 
 export { logger } from './logger.js';
 export { ReportGenerator } from './report-generator.js';
+export * from './error-handler.js';
+// or specifically:
+export { withRetry, withTimeout, ReviewError, ErrorCodes } from './error-handler.js';
 
 // TODO: Uncomment these exports after completing the implementations
 // export { RateLimiter, globalRateLimiter, withRateLimit } from './rate-limiter.js';
