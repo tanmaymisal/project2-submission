@@ -70,10 +70,12 @@ export class RateLimiter {
   release(actualTokens?: number): void {
     this.activeRequests = Math.max(0, this.activeRequests - 1);
 
-    // Update last request with actual token count if provided
+    // Update last request with actual token count if provided (with optional chaining safety)
     if (actualTokens !== undefined && this.requestHistory.length > 0) {
       const lastRequest = this.requestHistory[this.requestHistory.length - 1];
-      lastRequest.tokens = actualTokens;
+      if (lastRequest) {
+        lastRequest.tokens = actualTokens;
+      }
     }
 
     // Wake up next waiting request
@@ -149,8 +151,10 @@ export class RateLimiter {
       this.pruneOldRecords();
       if (this.requestHistory.length === 0) break;
 
-      const oldestTimestamp = this.requestHistory[0].timestamp;
-      const expirationTime = oldestTimestamp + 60000;
+      const oldest = this.requestHistory[0];
+      if (!oldest) break;
+
+      const expirationTime = oldest.timestamp + 60000;
       const waitTime = expirationTime - Date.now() + 100;
       const sleepTime = Math.min(Math.max(100, waitTime), 5000);
 
