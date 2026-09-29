@@ -55,13 +55,15 @@ export class CodeReviewOrchestrator {
                 'mcp__github__get_file_contents',
                 'mcp__eslint__lint'
               ],
-              mcpServers: mcpServersConfig,
+              mcpServers: mcpServersConfig as Record<string, any>, // Cast to satisfy strict env mapping
               outputFormat: {
                 type: 'json_schema',
                 schema: schema as Record<string, unknown>
               }
             }
           });
+
+          let finalReport: ReviewReport | null = null;
 
           for await (const message of result) {
             if (message.type === 'result') {
@@ -75,23 +77,25 @@ export class CodeReviewOrchestrator {
                 
                 if (parsed.success) {
                   console.log('Analysis completed successfully!');
-                  globalRateLimiter.release();
-                  return parsed.data;
+                  finalReport = parsed.data;
+                  break; // Exit the stream loop immediately to prevent double-returns
                 } else {
-                  globalRateLimiter.release();
                   throw new Error(`Output validation failed: ${parsed.error.message}`);
                 }
               }
             }
           }
 
+          if (!finalReport) {
+            throw new Error('Analysis completed without generating a structured report.');
+          }
+          
+          return finalReport;
+        } finally {
+          // Guarantee rate limiter slot is released exactly once
           globalRateLimiter.release();
-          throw new Error('Analysis completed without generating a structured report.');
-        } catch (error) {
-          globalRateLimiter.release();
-          throw error;
         }
-      }, 120000, 'Agent execution timed out after 2 minutes');
+      }, 180000, 'Agent execution timed out after 3 minutes');
     });
   }
 }
