@@ -40,7 +40,13 @@ export class CodeReviewOrchestrator {
         },
         model,
         maxTurns: 80, // <-- Bumped to 80 to handle real file reading
-        allowedTools: ['Task'],
+       allowedTools: [
+      'Task',
+      'mcp__github__get_pull_request',
+      'mcp__github__get_pull_request_files',
+      'mcp__github__get_file_contents',
+      'mcp__eslint__lint'
+    ],
         mcpServers: mcpServersConfig,
         outputFormat: {
           type: 'json_schema',
