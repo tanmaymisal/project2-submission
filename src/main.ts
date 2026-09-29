@@ -55,7 +55,6 @@ async function main() {
   }
 
   // TODO: Validate ANTHROPIC_MODEL environment variable
-  
   if (!process.env.ANTHROPIC_MODEL) {
     console.error('Error: ANTHROPIC_MODEL environment variable is required.');
     process.exit(1);
@@ -85,16 +84,20 @@ async function main() {
       fs.mkdirSync(reportsDir, { recursive: true });
     }
     
-    // Define file paths
-    const prefix = `${repo}-pr${prNumber}`;
-    const jsonPath = path.join(reportsDir, `${prefix}.json`);
-    const mdPath = path.join(reportsDir, `${prefix}.md`);
-    const htmlPath = path.join(reportsDir, `${prefix}.html`);
+    // Define canonical file paths required by the rubric
+    const jsonPath = path.join(reportsDir, 'report.json');
+    const mdPath = path.join(reportsDir, 'report.md');
+    const htmlPath = path.join(reportsDir, 'report.html');
     
-    // Save reports to 'reports/' directory with appropriate filenames
+    // Save reports to 'reports/' directory with canonical filenames
     fs.writeFileSync(jsonPath, jsonOutput);
     fs.writeFileSync(mdPath, mdOutput);
     fs.writeFileSync(htmlPath, htmlOutput);
+
+    // Guard against empty placeholder reports
+    if (!report.fileReviews || report.fileReviews.length === 0) {
+      throw new Error('Report generated with no file reviews; check GitHub MCP and subagent execution.');
+    }
     
     console.log(`\n✅ Success! Reports generated and saved to the 'reports/' directory:`);
     console.log(`  - ${jsonPath}`);
