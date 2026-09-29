@@ -3,22 +3,14 @@
  *
  * NOTE: Logger and ReportGenerator are provided
  * TODO: Complete error handler and rate limiter implementations,
- *       then uncomment the exports below
+ *        then uncomment the exports below
  */
 
 export { logger } from './logger.js';
 export { ReportGenerator } from './report-generator.js';
-export * from './error-handler.js';
-// or specifically:
-export { withRetry, withTimeout, ReviewError, ErrorCodes } from './error-handler.js';
 
-// TODO: Uncomment these exports after completing the implementations
+// Error handler exports (Active and implemented)
+export * from './error-handler.js';
+
+// Rate limiter (keep commented out unless you implemented it, or uncomment if needed)
 // export { RateLimiter, globalRateLimiter, withRateLimit } from './rate-limiter.js';
-// export {
-//   ReviewError,
-//   ErrorCodes,
-//   withRetry,
-//   withTimeout,
-//   isReviewError,
-//   formatError
-// } from './error-handler.js';
