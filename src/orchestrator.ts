@@ -1,101 +1,40 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import zodToJsonSchema from 'zod-to-json-schema';
-import { ReviewReport, ReviewReportSchema } from './types/index.js';
-import { codeQualityAnalyzer, testCoverageAnalyzer, refactoringSuggester } from './agents/index.js';
-import { buildOrchestratorPrompt } from './prompts/index.js';
-import { mcpServersConfig } from './config/mcp.config.js';
-import { withRetry, withTimeout, globalRateLimiter } from './utils/index.js';
+import { describe, it, expect } from 'vitest';
+import { ReviewReportSchema } from '../src/types/index.js';
+import { RateLimiter } from '../src/utils/rate-limiter.js';
 
-export interface OrchestratorOptions {}
-
-export class CodeReviewOrchestrator {
-  constructor(options: OrchestratorOptions = {}) {}
-
-  async reviewPullRequest(
-    owner: string,
-    repo: string,
-    prNumber: number
-  ): Promise<ReviewReport> {
-    
-    const model = process.env.ANTHROPIC_MODEL;
-    if (!model) {
-      throw new Error('ANTHROPIC_MODEL environment variable is required');
-    }
-
-    console.log(`Starting multi-agent review for ${owner}/${repo}#${prNumber}...`);
-
-    // FIX 1: Cast to any to prevent deeply nested Zod instantiation errors
-    const schema = zodToJsonSchema(ReviewReportSchema as any, {
-      $refStrategy: 'root'
+describe('ReviewReportSchema', () => {
+  it('accepts a valid report shape', () => {
+    const parsed = ReviewReportSchema.safeParse({
+      pullRequest: { owner: 'octocat', repo: 'Hello-World', number: 1 },
+      fileReviews: [],
+      summary: { totalFiles: 0, overallScore: 100, criticalIssues: 0, highPriorityTests: 0, refactoringOpportunities: 0 },
+      recommendations: [],
+      metadata: { analyzedAt: new Date().toISOString(), duration: 0, agentVersions: {} }
     });
+    expect(parsed.success).toBe(true);
+  });
 
-    const prompt = buildOrchestratorPrompt(owner, repo, prNumber);
-
-    // Wrap the query execution flow with rate limiting, retry, and timeout mechanisms
-    return await withRetry(async () => {
-      return await withTimeout(async () => {
-        // Acquire token/request capacity from the global rate limiter
-        await globalRateLimiter.acquire(2000);
-
-        try {
-          const result = query({
-            prompt,
-            options: {
-              agents: {
-                'code-quality-analyzer': codeQualityAnalyzer,
-                'test-coverage-analyzer': testCoverageAnalyzer,
-                'refactoring-suggester': refactoringSuggester
-              },
-              model,
-              maxTurns: 80, // <-- Bumped to 80 to handle real file reading
-              allowedTools: [
-                'Task',
-                'mcp__github__get_pull_request',
-                'mcp__github__get_pull_request_files',
-                'mcp__github__get_file_contents',
-                'mcp__eslint__lint'
-              ],
-              mcpServers: mcpServersConfig as Record<string, any>, // Cast to satisfy strict env mapping
-              outputFormat: {
-                type: 'json_schema',
-                schema: schema as Record<string, unknown>
-              }
-            }
-          });
-
-          let finalReport: ReviewReport | null = null;
-
-          for await (const message of result) {
-            if (message.type === 'result') {
-              // Log if it halts for a specific reason (like hitting the turn limit)
-              if (message.subtype !== 'success') {
-                console.error(`\n⚠️ Agent execution halted. Reason: ${message.subtype}`);
-              }
-              
-              if (message.subtype === 'success' && message.structured_output) {
-                const parsed = ReviewReportSchema.safeParse(message.structured_output);
-                
-                if (parsed.success) {
-                  console.log('Analysis completed successfully!');
-                  finalReport = parsed.data;
-                  break; // Exit the stream loop immediately to prevent double-returns
-                } else {
-                  throw new Error(`Output validation failed: ${parsed.error.message}`);
-                }
-              }
-            }
-          }
-
-          if (!finalReport) {
-            throw new Error('Analysis completed without generating a structured report.');
-          }
-          
-          return finalReport;
-        } finally {
-          // Guarantee rate limiter slot is released exactly once
-          globalRateLimiter.release();
-        }
-      }, 180000, 'Agent execution timed out after 3 minutes');
+  it('rejects an invalid PR number type', () => {
+    const parsed = ReviewReportSchema.safeParse({ 
+      pullRequest: { owner: 'x', repo: 'y', number: '1' } 
     });
-  }
-}
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe('RateLimiter', () => {
+  it('allows requests under configured limits', () => {
+    const limiter = new RateLimiter({ 
+      maxRequestsPerMinute: 2, 
+      maxTokensPerMinute: 1000, 
+      maxConcurrent: 1 
+    });
+    expect(limiter.canProceed(100)).toBe(true);
+  });
+});
+
+describe('CodeReviewOrchestrator Integration', () => {
+  it.skip('should review a real small PR', async () => {
+    // Skipped so live GitHub/Claude credentials are not required for normal CI runs
+  });
+});
